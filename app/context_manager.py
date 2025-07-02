@@ -8,6 +8,7 @@ class ContextManager:
         :param max_history: Number of past exchanges to retain.
         """
         self.history = deque(maxlen=max_history)  # Stores tuples of (role, content)
+        self.sanitized_history = deque(maxlen=max_history)
 
     def add_message(self, role, content):
         """
@@ -26,9 +27,20 @@ class ContextManager:
         context = list(self.history) # Converting to a list to make it JSON like ready for GPT to ingest
         context.append({"role": "user", "content": new_user_input})
         return context
+    
+    def add_sanitized_message(self, role, content):
+        self.sanitized_history.append({"role": role, "content": content})
+
+    def get_sanitized_context(self, new_user_input):
+        context = list(self.sanitized_history)
+        context.append({"role": "user", "content": new_user_input})
+        return context
 
     def clear(self):
         """
         Clears conversation history.
         """
         self.history.clear()   # To clear any malicious context after detection 
+    
+    def clear_sanitized(self):
+        self.sanitized_history.clear()

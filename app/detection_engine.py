@@ -64,8 +64,11 @@ def map_to_mitre_technique(prompt: str):
 
 # --- Format conversation context ---
 def build_context(chat_history, max_turns=10):
-    context = chat_history[-(max_turns + 1):-1]
-    return "\n".join([f"{msg['role']}: {msg['content']}" for msg in context])
+    # context = chat_history[-(max_turns + 1):-1]
+    # return "\n".join([f"{msg['role']}: {msg['content']}" for msg in context])
+    user_messages = [msg for msg in chat_history[:-1] if msg['role'] == 'user']
+    context = user_messages[-max_turns:]
+    return "\n".join([f"user: {msg['content']}" for msg in context])
 
 # --- CVSS-style risk level mapping ---
 def tag_risk_level(score):
@@ -102,14 +105,20 @@ def evaluate_chat(chat_history, context_weight=0.6, input_weight=0.4):
     # Normalize labels (lowercase and trim for safety)
     context_label = context_result['label'].strip().lower()
     input_label = input_result['label'].strip().lower()
+
+        #--- Debug Code ---
     print("\n📊 Raw Semantic Scores:")
     print(f"Context result → {context_result}")
     print(f"Input result   → {input_result}")
+
     context_conf = context_result['score'] if context_label == 'injection' else (1 - context_result['score'])
     input_conf = input_result['score'] if input_label == 'injection' else (1 - input_result['score'])
+
+        #--- Debug Code ---
     print("\n📊 Raw Semantic Scores:")
     print(f"Context conf → {context_conf}")
     print(f"Input conf   → {input_conf}")
+
     blended_score = context_weight * context_conf + input_weight * input_conf
     score = int(blended_score * 100)
 
@@ -121,6 +130,12 @@ def evaluate_chat(chat_history, context_weight=0.6, input_weight=0.4):
         mitre = {"id": None, "name": "Benign"}
 
     confidence = blended_score
+
+        #--- Debug Code ---
+    # print(f"Input: {current_input}")
+    # print(f"🛡️  Risk Score: {score} | Level: {tag_risk_level(score)}")
+    # print(f"📌 Label: {label}")
+    # print(f"🧠 Context Used:\n{context_input[:200]}...\n")
 
     return {
         "score": score,
