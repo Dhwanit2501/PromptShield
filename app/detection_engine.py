@@ -91,45 +91,45 @@ def evaluate_chat(chat_history, context_weight=0.6, input_weight=0.4):
         context_weight = 0.0
         input_weight = 1.0
 
-    # Static check on current input only
-    # if static_analysis(current_input):
-    #     label = "malicious (static)"
-    #     score = 95
-    #     mitre = map_to_mitre_technique(current_input)
-    #     confidence = 0.95
-
-    # else:
-    context_result = classifier(context_input)[0]
-    input_result = classifier(current_input)[0]
-
-    # Normalize labels (lowercase and trim for safety)
-    context_label = context_result['label'].strip().lower()
-    input_label = input_result['label'].strip().lower()
-
-        #--- Debug Code ---
-    print("\n📊 Raw Semantic Scores:")
-    print(f"Context result → {context_result}")
-    print(f"Input result   → {input_result}")
-
-    context_conf = context_result['score'] if context_label == 'injection' else (1 - context_result['score'])
-    input_conf = input_result['score'] if input_label == 'injection' else (1 - input_result['score'])
-
-        #--- Debug Code ---
-    print("\n📊 Raw Semantic Scores:")
-    print(f"Context conf → {context_conf}")
-    print(f"Input conf   → {input_conf}")
-
-    blended_score = context_weight * context_conf + input_weight * input_conf
-    score = int(blended_score * 100)
-
-    if context_label == 'injection' or input_label == 'injection':
-        label = "malicious"
+    # --- Static check on current input only
+    if static_analysis(current_input):
+        label = "malicious (Static Analysis)"
+        score = 95
         mitre = map_to_mitre_technique(current_input)
-    else:
-        label = "benign"
-        mitre = {"id": None, "name": "Benign"}
+        confidence = 0.95
 
-    confidence = blended_score
+    else:
+        context_result = classifier(context_input)[0]
+        input_result = classifier(current_input)[0]
+
+        # Normalize labels (lowercase and trim for safety)
+        context_label = context_result['label'].strip().lower()
+        input_label = input_result['label'].strip().lower()
+
+            #--- Debug Code ---
+        print("\n📊 Raw Semantic Scores:")
+        print(f"Context result → {context_result}")
+        print(f"Input result   → {input_result}")
+
+        context_conf = context_result['score'] if context_label == 'injection' else (1 - context_result['score'])
+        input_conf = input_result['score'] if input_label == 'injection' else (1 - input_result['score'])
+
+            #--- Debug Code ---
+        print("\n📊 Raw Semantic Scores:")
+        print(f"Context conf → {context_conf}")
+        print(f"Input conf   → {input_conf}")
+
+        blended_score = context_weight * context_conf + input_weight * input_conf
+        score = int(blended_score * 100)
+
+        if context_label == 'injection' or input_label == 'injection':
+            label = "malicious"
+            mitre = map_to_mitre_technique(current_input)
+        else:
+            label = "benign"
+            mitre = {"id": None, "name": "Benign"}
+
+        confidence = blended_score
 
         #--- Debug Code ---
     # print(f"Input: {current_input}")

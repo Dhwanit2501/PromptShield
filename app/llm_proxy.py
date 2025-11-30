@@ -1,7 +1,9 @@
 import os
 import datetime
 import logging
-from fastapi import FastAPI
+import time
+import sqlite3
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -10,6 +12,7 @@ from app.session_manager import get_session, clear_session
 from app.detection_engine import evaluate_chat
 from app.azure_logger import send_log_to_azure
 from app.sanitizer import sanitize_input
+from app.rate_limiter import rate_limiter
 
 # Load secrets from .env
 load_dotenv()
@@ -23,6 +26,16 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Initialize limiter
+limiter = rate_limiter()
+
+# Apply middleware globally
+@app.middleware("http")
+async def limit_middleware(request: Request, call_next):
+    await limiter(request)
+    return await call_next(request)
+
+
 SYSTEM_PROMPT = (
     "You are a professional banking assistant. "
     "You only answer questions about the bank's products and policies."
@@ -35,9 +48,22 @@ class ChatRequest(BaseModel):
     message: str
 
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(req: Request, request: ChatRequest):
+    ip = req.client.host
     # Load or create session
     ctx, sid = get_session(request.session_id)
+    
+    # save session-id → ip mapping
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT OR REPLACE INTO session_ip_map (session_id, ip, created_at)
+        VALUES (?, ?, ?)
+    """, (sid, ip, time.time()))
+
+    conn.commit()
+    conn.close()
 
     # Add raw user input (always tracked for detection and audit)
     ctx.add_message("user", request.message)
