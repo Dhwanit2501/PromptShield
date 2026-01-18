@@ -82,7 +82,7 @@ def tag_risk_level(score):
         return "low"
 
 # --- Combined detection function with context + current input scoring ---
-def evaluate_chat(chat_history, context_weight=0.6, input_weight=0.4):
+def evaluate_chat(chat_history, context_weight=0.4, input_weight=0.6):
     current_input = chat_history[-1]['content']
     context_input = build_context(chat_history)
 

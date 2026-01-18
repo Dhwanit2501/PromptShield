@@ -12,7 +12,7 @@ from app.session_manager import get_session, clear_session
 from app.detection_engine import evaluate_chat
 from app.azure_logger import send_log_to_azure
 from app.sanitizer import sanitize_input
-from app.rate_limiter import rate_limiter
+from app.rate_limiter import rate_limiter, is_ip_in_cooldown
 
 # Load secrets from .env
 load_dotenv()
@@ -50,6 +50,16 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat_endpoint(req: Request, request: ChatRequest):
     ip = req.client.host
+
+    if is_ip_in_cooldown(ip):
+        return {
+            "session_id": None,
+            "blocked": True,
+            "message": "⏳ Rate limit exceeded. Please wait for 5 minutes before trying again.",
+            "risk_score": None,
+            "label": "rate_limited"
+        }
+
     # Load or create session
     ctx, sid = get_session(request.session_id)
     
