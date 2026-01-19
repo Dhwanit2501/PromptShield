@@ -414,7 +414,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- [ProtectAI](https://protectai.com/) for the DeBERTa prompt injection classifier
+- [ProtectAI](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2) for the DeBERTa prompt injection classifier
 - [MITRE ATLAS](https://atlas.mitre.org/) for the AI threat framework
 - [OWASP LLM Top 10](https://owasp.org/www-project-machine-learning-security-top-10/) for security guidelines
 
