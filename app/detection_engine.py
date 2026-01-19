@@ -68,7 +68,8 @@ def build_context(chat_history, max_turns=10):
     # return "\n".join([f"{msg['role']}: {msg['content']}" for msg in context])
     user_messages = [msg for msg in chat_history[:-1] if msg['role'] == 'user']
     context = user_messages[-max_turns:]
-    return "\n".join([f"user: {msg['content']}" for msg in context])
+    # return "\n".join([f"user: {msg['content']}" for msg in context]) --- Older formatting of user
+    return "\n".join([msg['content'] for msg in context])
 
 # --- CVSS-style risk level mapping ---
 def tag_risk_level(score):
@@ -136,6 +137,7 @@ def evaluate_chat(chat_history, context_weight=0.4, input_weight=0.6):
     # print(f"🛡️  Risk Score: {score} | Level: {tag_risk_level(score)}")
     # print(f"📌 Label: {label}")
     # print(f"🧠 Context Used:\n{context_input[:200]}...\n")
+    print(f"Raw Score   → {score}")
 
     return {
         "score": score,
