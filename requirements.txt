@@ -1,5 +1,16 @@
+# openai
+# streamlit
+# python-dotenv
+# requests
+# azure-loganalytics-data-collector-api
+
+fastapi
+uvicorn[standard]
 openai
-streamlit
 python-dotenv
+pydantic
+transformers
+torch
+ip2geotools
 requests
 azure-loganalytics-data-collector-api
