@@ -13,4 +13,3 @@ transformers
 torch
 ip2geotools
 requests
-azure-loganalytics-data-collector-api
