@@ -331,11 +331,14 @@ lock = threading.Lock()
 
 
 def get_location(ip):
-    try:
-        res = DbIpCity.get(ip, api_key="free")
-        return res.country, res.region, res.city, res.latitude, res.longitude
-    except:
-        return "Unknown", "Unknown", "Unknown", None, None
+    
+    return "Unknown", "Unknown", "Unknown", None, None
+    # Was causing latency, removed it
+    # try:
+    #     res = DbIpCity.get(ip, api_key="free")
+    #     return res.country, res.region, res.city, res.latitude, res.longitude
+    # except:
+    #     return "Unknown", "Unknown", "Unknown", None, None
 
 
 def get_db():
