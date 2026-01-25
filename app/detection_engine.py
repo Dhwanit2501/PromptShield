@@ -1,14 +1,47 @@
-from transformers import pipeline
-import re
+# from transformers import pipeline
+# import re
 
-# --- Load the semantic classifier (ProtectAI DeBERTa V3) ---
-classifier = pipeline(
-    "text-classification",
-    model="protectai/deberta-v3-base-prompt-injection-v2",
-    tokenizer="protectai/deberta-v3-base-prompt-injection-v2",
-    truncation=True,
-    max_length=512,
+# Switching to running model remotely
+import os
+import re
+from dotenv import load_dotenv
+from huggingface_hub import InferenceClient
+
+
+load_dotenv()
+client = InferenceClient(
+    provider="hf-inference",
+    api_key=os.environ.get("HF_TOKEN"),
 )
+
+def classify_text(text):
+    """Call Hugging Face Inference API for text classification."""
+    try:
+        result = client.text_classification(
+            text,
+            model="protectai/deberta-v3-base-prompt-injection-v2",
+        )
+        
+        # Result is a list: [Classification(label='SAFE', score=0.99), ...]
+        # Find highest score or get first result
+        if result:
+            top = max(result, key=lambda x: x.score)
+            return {'label': top.label.upper(), 'score': top.score}
+        
+        return {'label': 'SAFE', 'score': 0.5}
+        
+    except Exception as e:
+        print(f"HF API Error: {e}")
+        return {'label': 'SAFE', 'score': 0.5}  # Fail-safe
+
+# --- Load the semantic classifier (ProtectAI DeBERTa V3) Locally---
+# classifier = pipeline(
+#     "text-classification",
+#     model="protectai/deberta-v3-base-prompt-injection-v2",
+#     tokenizer="protectai/deberta-v3-base-prompt-injection-v2",
+#     truncation=True,
+#     max_length=512,
+# )
 
 # --- Static Analysis with Regex ---
 BLACKLISTED_PATTERNS = [
@@ -100,8 +133,12 @@ def evaluate_chat(chat_history, context_weight=0.4, input_weight=0.6):
         confidence = 0.95
 
     else:
-        context_result = classifier(context_input)[0]
-        input_result = classifier(current_input)[0]
+        # context_result = classifier(context_input)[0]
+        # input_result = classifier(current_input)[0]
+
+        # Fixed logic to make the model run remotely and avoid unnecessary calls
+        context_result = classify_text(context_input) if context_input else {'label': 'SAFE', 'score': 1.0}
+        input_result = classify_text(current_input)
 
         # Normalize labels (lowercase and trim for safety)
         context_label = context_result['label'].strip().lower()
