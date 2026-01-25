@@ -14,7 +14,7 @@ from app.detection_engine import evaluate_chat
 from app.azure_logger import send_log_to_azure
 from app.sanitizer import sanitize_input
 from app.rate_limiter import rate_limiter, is_ip_in_cooldown
-
+import app.data_db
 # Load secrets from .env
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -26,6 +26,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "message": "PromptShield API is running"}
 
 # --- 1. ENABLE CORS (Crucial) ---
 # Without this, the browser will block the frontend from talking to the backend
@@ -95,10 +98,6 @@ LOG_RISK_LEVELS = {"medium", "high", "critical"}
 class ChatRequest(BaseModel):
     session_id: str
     message: str
-
-@app.get("/")
-async def health_check():
-    return {"status": "ok", "message": "PromptShield API is running"}
 
 @app.post("/chat")
 async def chat_endpoint(req: Request, request: ChatRequest):
