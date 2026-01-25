@@ -32,7 +32,7 @@ app = FastAPI()
 origins = [
     "http://localhost:5173",  # The default Vite/React port
     "http://127.0.0.1:5173",
-    "https://prompt-shield1.vercel.app/"
+    "https://prompt-shield1.vercel.app",
     # Add your production URL here later (e.g., "https://prompt-shield.vercel.app")
 ]
 
