@@ -2150,7 +2150,9 @@ export default function App() {
     setIsProcessing(true);
 
     try {
-      const API_URL = "http://localhost:8000/chat"; 
+      //const API_URL = "http://localhost:8000/chat"; 
+      const API_BASE = import.meta.env.VITE_API_BASE;
+      const API_URL = `${API_BASE}/chat`;
       
       const response = await fetch(API_URL, {
         method: "POST",
