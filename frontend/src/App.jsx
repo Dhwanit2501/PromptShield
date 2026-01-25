@@ -2217,14 +2217,31 @@ export default function App() {
         }
 
         // If backend gave nothing (shouldn’t after your changes), last-resort fallback
-        if (!untilMs) untilMs = Date.now() + 120 * 1000;
+        // if (!untilMs) untilMs = Date.now() + 120 * 1000;
 
-        setIsRateLimited(true);
-        setRateLimitMessage(message);
-        startCooldownUntil(untilMs);
+        // setIsRateLimited(true);
+        // setRateLimitMessage(message);
+        // startCooldownUntil(untilMs);
+
+        // setIsProcessing(false);
+        // return;
+
+        // Fixed the timer issue with daily limit
+        if (untilMs) {
+          // Temporary (burst) limit
+          setIsRateLimited(true);
+          setRateLimitMessage(message);
+          startCooldownUntil(untilMs);
+        } else {
+          // Hard stop (daily/global)
+          setIsRateLimited(true);
+          setRateLimitMessage(message);
+          setCooldownActive(false);
+        }
 
         setIsProcessing(false);
         return;
+
       }
 
 // -----------------------------------------------------------
