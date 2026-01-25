@@ -118,9 +118,9 @@ async def chat_endpoint(req: Request, request: ChatRequest):
     
     # Logging for observability
     print(f"🔍 Client IP: {ip}")
-    print(f"🔍 X-Forwarded-For: {request.headers.get('X-Forwarded-For')}")
-    print(f"🔍 X-Real-IP: {request.headers.get('X-Real-IP')}")
-    print(f"🔍 client.host: {request.client.host}")
+    print(f"🔍 X-Forwarded-For: {req.headers.get('X-Forwarded-For')}")
+    print(f"🔍 X-Real-IP: {req.headers.get('X-Real-IP')}")
+    print(f"🔍 client.host: {req.client.host}")
 
 
     # if is_ip_in_cooldown(ip):
