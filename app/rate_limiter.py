@@ -329,6 +329,22 @@ ALLOWED_ORIGINS = [
 
 lock = threading.Lock()
 
+# Added a function to prevent rate limit bypass
+def get_real_ip(request: Request) -> str:
+    """Get the real client IP, checking proxy headers first."""
+    # Check common proxy headers
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        # X-Forwarded-For can be: "client_ip, proxy1, proxy2"
+        return forwarded.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    
+    # Fallback to direct client IP
+    return request.client.host
+
 
 def get_location(ip):
     
@@ -432,7 +448,8 @@ def rate_limiter():
         # Get origin from request for CORS
         origin = request.headers.get("origin")
         
-        ip = request.client.host
+        # ip = request.client.host
+        ip = get_real_ip(request)
         now = time.time()
         today = datetime.utcnow().strftime("%Y-%m-%d")
 

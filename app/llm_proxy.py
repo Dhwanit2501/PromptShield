@@ -99,9 +99,29 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
 
+def get_real_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    
+    return request.client.host
+
+
 @app.post("/chat")
 async def chat_endpoint(req: Request, request: ChatRequest):
-    ip = req.client.host
+    #ip = req.client.host
+    ip = get_real_ip(req)
+    
+    # Logging for observability
+    print(f"🔍 Client IP: {ip}")
+    print(f"🔍 X-Forwarded-For: {request.headers.get('X-Forwarded-For')}")
+    print(f"🔍 X-Real-IP: {request.headers.get('X-Real-IP')}")
+    print(f"🔍 client.host: {request.client.host}")
+
 
     # if is_ip_in_cooldown(ip):
     #     return {
