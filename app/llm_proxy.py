@@ -56,6 +56,10 @@ limiter = rate_limiter()
 
 @app.middleware("http")
 async def limit_middleware(request: Request, call_next):
+    # Skip rate limiting for OPTIONS (CORS preflight) requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
     # Rate limiter returns JSONResponse or None
     result = await limiter(request)
     
@@ -91,6 +95,10 @@ LOG_RISK_LEVELS = {"medium", "high", "critical"}
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "message": "PromptShield API is running"}
 
 @app.post("/chat")
 async def chat_endpoint(req: Request, request: ChatRequest):
