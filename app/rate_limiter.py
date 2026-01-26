@@ -521,7 +521,7 @@ def rate_limiter():
                 conn.close()
                 return create_rate_limit_response(
                     429,
-                    f"🚫 Daily limit reached ({DAILY_LIMIT_PER_IP} requests). Try again tomorrow.",
+                    f"🚫 Daily limit reached. Try again tomorrow.",
                     origin
                 )
 
