@@ -311,14 +311,24 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from ip2geotools.databases.noncommercial import DbIpCity
 
+# Layer 1: Burst Protection
 # Rate limit settings
-REQUESTS_PER_WINDOW = 5
+REQUESTS_PER_WINDOW = 3     # Max requests per window
 WINDOW_SECONDS = 60
-COOLDOWN_SECONDS = 300
 
-# Daily limits
-DAILY_LIMIT_PER_IP = 6
-GLOBAL_DAILY_LIMIT = 7
+# Layer 2: Cooldown Escalation
+COOLDOWN_SECONDS = 30      # 5 minutes (first offense)
+MAX_COOLDOWN = 120           # 1 hour (max penalty)
+COOLDOWN_MULTIPLIER = 2       # Double cooldown each offense
+MAX_OFFENSE_COUNT = 5        # Cap offense count
+
+# Layer 3: Daily Limits
+DAILY_LIMIT_PER_IP = 10          # Per IP per day (50)
+GLOBAL_DAILY_LIMIT = 20          # Total all users per day (200)
+
+
+# Layer 4: DDoS Protection
+REQUESTS_PER_SECOND_LIMIT = 2 # Max 3 requests/second per IP
 
 # CORS origins (must match your llm_proxy.py)
 ALLOWED_ORIGINS = [
@@ -469,7 +479,7 @@ def rate_limiter():
         # ip = request.client.host
         ip = get_real_ip(request)
         now = time.time()
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         with lock:
             conn = get_db()
@@ -484,14 +494,14 @@ def rate_limiter():
                 conn.close()
                 return create_rate_limit_response(
                     503,
-                    "🛑 Service temporarily unavailable due to high demand. Try again in {msg}.",
+                    f"🛑 Service temporarily unavailable due to high demand. Try again in {msg}.",
                     origin,
                     retry_after=remaining,
                     cooldown_until=end_ts
                 )
 
             cursor.execute("""
-                SELECT request_count, window_start, cooldown_until, daily_count, daily_date 
+                SELECT request_count, window_start, cooldown_until, daily_count, daily_date, offense_count, last_request_time 
                 FROM ip_data WHERE ip=?
             """, (ip,))
             row = cursor.fetchone()
@@ -500,14 +510,18 @@ def rate_limiter():
             if row is None:
                 country, region, city, lat, lon = get_location(ip)
                 cursor.execute("""
-                    INSERT INTO ip_data (ip, request_count, window_start, cooldown_until, daily_count, daily_date, country, region, city, latitude, longitude)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (ip, 1, now, None, 1, today, country, region, city, lat, lon))
+                    INSERT INTO ip_data (ip, request_count, window_start, cooldown_until, daily_count, daily_date, offense_count, last_request_time, country, region, city, latitude, longitude)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (ip, 1, now, None, 1, today, 0, now, country, region, city, lat, lon))
                 conn.commit()
                 conn.close()
                 return None
 
-            request_count, window_start, cooldown_until, daily_count, daily_date = row
+            request_count, window_start, cooldown_until, daily_count, daily_date, offense_count, last_request_time = row
+
+            # Handle None values
+            offense_count = offense_count or 0
+            last_request_time = last_request_time or 0
 
             # Check cooldown
             # if cooldown_until and now < cooldown_until:
@@ -520,6 +534,35 @@ def rate_limiter():
             #         origin
             #     )
             
+            # LAYER 4: RAPID-FIRE DETECTION (DDoS)
+            # ===========================================
+            time_since_last = now - last_request_time
+            if time_since_last < (1 / REQUESTS_PER_SECOND_LIMIT):
+                offense_count = min(offense_count + 1, MAX_OFFENSE_COUNT)
+                cooldown_duration = min(
+                    COOLDOWN_SECONDS * (COOLDOWN_MULTIPLIER ** (offense_count - 1)),
+                    MAX_COOLDOWN
+                )
+                cooldown_until = now + cooldown_duration
+                
+                cursor.execute("""
+                    UPDATE ip_data 
+                    SET cooldown_until=?, offense_count=?, last_request_time=?
+                    WHERE ip=?
+                """, (cooldown_until, offense_count, now, ip))
+                conn.commit()
+                conn.close()
+                
+                msg = format_remaining(int(cooldown_duration))
+                return create_rate_limit_response(
+                    429,
+                    f"🚨 Rapid requests detected. Blocked for {msg}.",
+                    origin,
+                    retry_after=int(cooldown_duration),
+                    cooldown_until=cooldown_until
+                )
+
+
             # New cooldown with retry_after
             if cooldown_until and now < cooldown_until:
                 remaining = int(cooldown_until - now)
@@ -538,6 +581,7 @@ def rate_limiter():
             if daily_date != today:
                 daily_count = 0
                 daily_date = today
+                offense_count = max(0, offense_count - 1)
 
             # Check per-IP daily limit
             if daily_count >= DAILY_LIMIT_PER_IP:
@@ -562,12 +606,17 @@ def rate_limiter():
 
             # Check burst limit
             if request_count > REQUESTS_PER_WINDOW:
-                cooldown_until = now + COOLDOWN_SECONDS
+                offense_count = min(offense_count + 1, MAX_OFFENSE_COUNT)
+                cooldown_duration = min(
+                    COOLDOWN_SECONDS * (COOLDOWN_MULTIPLIER ** (offense_count - 1)),
+                    MAX_COOLDOWN
+                )
+                cooldown_until = now + cooldown_duration
                 cursor.execute("""
                     UPDATE ip_data 
-                    SET request_count=?, window_start=?, cooldown_until=?, daily_count=?, daily_date=? 
+                    SET request_count=?, window_start=?, cooldown_until=?, daily_count=?, daily_date=?, offense_count=?, last_request_time=?
                     WHERE ip=?
-                """, (request_count, window_start, cooldown_until, daily_count, daily_date, ip))
+                """, (request_count, window_start, cooldown_until, daily_count, daily_date, offense_count, now, ip))
                 conn.commit()
                 conn.close()
                 # return create_rate_limit_response(
@@ -577,11 +626,12 @@ def rate_limiter():
                 # )
 
                 # new retry after added
+                msg = format_remaining(int(cooldown_duration))
                 return create_rate_limit_response(
                     429,
-                    f"⏳ Too many requests. Please wait for {COOLDOWN_SECONDS // 60} minutes.",
+                    f"⏳ Too many requests. Please wait for {msg}.",
                     origin,
-                    retry_after=COOLDOWN_SECONDS,
+                    retry_after=int(cooldown_duration),
                     cooldown_until=cooldown_until
                 )
 
@@ -589,9 +639,9 @@ def rate_limiter():
             daily_count += 1
             cursor.execute("""
                 UPDATE ip_data 
-                SET request_count=?, window_start=?, daily_count=?, daily_date=? 
+                SET request_count=?, window_start=?, daily_count=?, daily_date=?, last_request_time=?
                 WHERE ip=?
-            """, (request_count, window_start, daily_count, daily_date, ip))
+            """, (request_count, window_start, daily_count, daily_date, now, ip))
             conn.commit()
             conn.close()
 

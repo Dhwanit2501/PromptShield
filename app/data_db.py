@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS ip_data (
     cooldown_until REAL,
     daily_count INTEGER,
     daily_date TEXT,
+    offense_count INTEGER DEFAULT 0,
+    last_request_time REAL,
     country TEXT,
     region TEXT,
     city TEXT,
