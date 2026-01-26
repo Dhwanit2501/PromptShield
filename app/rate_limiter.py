@@ -576,6 +576,11 @@ def rate_limiter():
                     cooldown_until=cooldown_until
                 )
 
+            # Cooldown expired - reset burst counters for fresh start
+            if cooldown_until and now >= cooldown_until:
+                request_count = 0
+                window_start = now
+                cooldown_until = None
 
             # Reset daily count if new day
             if daily_date != today:
