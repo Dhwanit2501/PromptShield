@@ -306,7 +306,7 @@
 import time
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from ip2geotools.databases.noncommercial import DbIpCity
@@ -345,7 +345,25 @@ def get_real_ip(request: Request) -> str:
     # Fallback to direct client IP
     return request.client.host
 
+# added to find when the daily timer resets
+def end_of_today_utc_ts():
+    end = datetime.now(timezone.utc).replace(
+        hour=23, minute=59, second=59, microsecond=0
+    )
+    return end.timestamp()
 
+# --- Helper for countdown messages ---
+def format_remaining(seconds: int):
+    hours, rem = divmod(seconds, 3600)
+    mins, secs = divmod(rem, 60)
+
+    if hours > 0:
+        return f"{hours} hr {mins} min {secs} sec"
+    elif mins > 0:
+        return f"{mins} min {secs} sec"
+    else:
+        return f"{secs} sec"
+    
 def get_location(ip):
     
     return "Unknown", "Unknown", "Unknown", None, None
@@ -460,11 +478,16 @@ def rate_limiter():
             # Check global limit FIRST (DDoS protection)
             global_usage = get_global_usage(cursor, today)
             if global_usage >= GLOBAL_DAILY_LIMIT:
+                end_ts = end_of_today_utc_ts()
+                remaining = int(end_ts - now)
+                msg = format_remaining(remaining)
                 conn.close()
                 return create_rate_limit_response(
                     503,
-                    "🛑 Service temporarily unavailable due to high demand. Please try again tomorrow.",
-                    origin
+                    "🛑 Service temporarily unavailable due to high demand. Try again in {msg}.",
+                    origin,
+                    retry_after=remaining,
+                    cooldown_until=end_ts
                 )
 
             cursor.execute("""
@@ -500,11 +523,11 @@ def rate_limiter():
             # New cooldown with retry_after
             if cooldown_until and now < cooldown_until:
                 remaining = int(cooldown_until - now)
-                mins, secs = divmod(remaining, 60)
+                msg = format_remaining(remaining)
                 conn.close()
                 return create_rate_limit_response(
                     429,
-                    f"⏳ Rate limit exceeded. Please wait for {mins} min {secs} sec.",
+                    f"⏳ Rate limit exceeded. Please wait for {msg}.",
                     origin,
                     retry_after=remaining,
                     cooldown_until=cooldown_until
@@ -518,11 +541,16 @@ def rate_limiter():
 
             # Check per-IP daily limit
             if daily_count >= DAILY_LIMIT_PER_IP:
+                end_ts = end_of_today_utc_ts()
+                remaining = int(end_ts - now)
+                msg = format_remaining(remaining)
                 conn.close()
                 return create_rate_limit_response(
                     429,
-                    f"🚫 Daily limit reached. Try again tomorrow.",
-                    origin
+                    f"🚫 Daily limit reached. Try again in {msg}.",
+                    origin,
+                    retry_after=remaining,
+                    cooldown_until=end_ts
                 )
 
             # Check window (burst protection)
